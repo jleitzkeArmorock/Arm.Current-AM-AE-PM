@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Armorock – AE / AM / PM by State</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <!-- MarkerCluster CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+  />
+
+  <style>
+    html, body, #map {
+      height: 100%;
+      margin: 0;
+    }
+    .legend {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      background: white;
+      padding: 10px 12px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      font: 13px/1.3 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    .legend-title {
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0;
+    }
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+      border: 1px solid #00000020;
+    }
+    .dot-assigned { background: #3388ff; } /* Leaflet default blue */
+    .dot-open { background: #d33; }
+    .attribution {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      background: rgba(255,255,255,0.9);
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="legend">
+    <div class="legend-title">Legend</div>
+    <div class="legend-item"><span class="dot dot-assigned"></span> Assigned territory</div>
+    <div class="legend-item"><span class="dot dot-open"></span> Open territory</div>
+  </div>
+
+  <div class="attribution">
+    © OpenStreetMap contributors | © Armorock
+  </div>
+
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <!-- MarkerCluster JS -->
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <script>
+    // Approximate state centroid coordinates (lat, lon)
+    const STATE_CENTERS = {
+      AL:[32.8067,-86.7911], AK:[64.2008,-149.4937], AZ:[33.7298,-111.4312], AR:[34.9697,-92.3731],
+      CA:[36.1162,-119.6816], CO:[39.0598,-105.3111], CT:[41.5978,-72.7554], DE:[39.3185,-75.5071],
+      DC:[38.9072,-77.0369], FL:[27.7663,-81.6868], GA:[33.0406,-83.6431], HI:[21.0943,-157.4983],
+      ID:[44.2405,-114.4788], IL:[40.3495,-88.9861], IN:[39.8494,-86.2583], IA:[42.0115,-93.2105],
+      KS:[38.5266,-96.7265], KY:[37.6681,-84.6701], LA:[31.1695,-91.8678], ME:[44.6939,-69.3819],
+      MD:[39.0639,-76.8021], MA:[42.2302,-71.5301], MI:[43.3266,-84.5361], MN:[45.6945,-93.9002],
+      MS:[32.7416,-89.6787], MO:[38.4561,-92.2884], MT:[46.9219,-110.4544], NE:[41.1254,-98.2681],
+      NV:[38.3135,-117.0554], NH:[43.4525,-71.5639], NJ:[40.2989,-74.5210], NM:[34.8405,-106.2485],
+      NY:[42.1657,-74.9481], NC:[35.6301,-79.8064], ND:[47.5289,-99.7840], OH:[40.3888,-82.7649],
+      OK:[35.5653,-96.9289], OR:[44.5720,-122.0709], PA:[40.5908,-77.2098], RI:[41.6809,-71.5118],
+      SC:[33.8569,-80.9450], SD:[44.2998,-99.4388], TN:[35.7478,-86.6923], TX:[31.0545,-97.5635],
+      UT:[40.1500,-111.8624], VT:[44.0459,-72.7107], VA:[37.7693,-78.1699], WA:[47.4009,-121.4905],
+      WV:[38.4912,-80.9545], WI:[44.2685,-89.6165], WY:[42.7559,-107.3025]
+    };
+
+    // Helper: expand "GA/AL" => ["GA","AL"]
+    const expandStates = (s) => s.split('/').map(x => x.trim().toUpperCase());
+
+    // Data from the conversation (AE, AM, territory) + mapped PM per territory.
+    // Each object may represent a multi-state territory; we expand to per-state markers below.
+    const territoryRows = [
+      // TX (five entries; the 5th has AM OPEN and blank PM)
+      { ae:"Scott Kear", am:"Tony Deleon", states:["TX"], pm:"Tammy Vaughn" },
+      { ae:"Scott Kear", am:"Sam Belvedere", states:["TX"], pm:"Tammy Vaughn" },
+      { ae:"Austin Black", am:"Matt Kirchenbauer", states:["TX"], pm:"Tammy Vaughn" },
+      { ae:"Nathan Savage", am:"Connor Woodward", states:["TX"], pm:"Tammy Vaughn" },
+      { ae:null, am:"OPEN", states:["TX"], pm:"" },
+
+      // OK/KS/MO
+      { ae:"OPEN", am:"OPEN", states:["OK","KS","MO"], pm:"Tammy Vaughn" },
+
+      // GA/AL (two rows)
+      { ae:"OPEN", am:"Connor Woodward", states:["GA","AL"], pm:"Frank Uzzolino" },
+      { ae:"OPEN", am:"Anna Sappleton", states:["GA","AL"], pm:"Frank Uzzolino" },
+
+      // AR/MS/N. LA -> AR, MS, LA
+      { ae:"OPEN", am:"Kirby Danuser", states:["AR","MS","LA"], pm:"Tammy Vaughn" },
+
+      // IL/IA/WI
+      { ae:"Matt Bustin", am:"Noah Baldwin", states:["IL","IA","WI"], pm:"Frank Uzzolino" },
+
+      // MN
+      { ae:"Scott Larson", am:"Noah Baldwin", states:["MN"], pm:"Frank Uzzolino" },
+
+      // TN/KY
+      { ae:"Jamie Martin", am:"Kirby Danuser", states:["TN","KY"], pm:"Frank Uzzolino" },
+
+      // FL (three rows with two PMs)
+      { ae:"Jared Johnston", am:"Alex Escribano", states:["FL"], pm:"Edwin Dominguez" },
+      { ae:"Jared Johnston", am:"Sophia Vera", states:["FL"], pm:"Edwin Dominguez" },
+      { ae:"Jared Johnston", am:"Anna Sappleton", states:["FL"], pm:"Frank Uzzolino" },
+
+      // Indy/MI -> IN, MI
+      { ae:"Oak Andrews", am:"Bob Owen", states:["IN","MI"], pm:"Frank Uzzolino" },
+
+      // PA/OH
+      { ae:"Phil Beohm", am:"Bob Owen", states:["PA","OH"], pm:"Frank Uzzolino" },
+
+      // VA/DC
+      { ae:"Sean Souso", am:"Kirby Danuser", states:["VA","DC"], pm:"Frank Uzzolino" },
+
+      // NC
+      { ae:"Antoinette Norton", am:"Lisa Schalabba", states:["NC"], pm:"Frank Uzzolino" },
+
+      // AZ
+      { ae:"OPEN", am:"Austin Woodward", states:["AZ"], pm:"Mike Klug" },
+
+      // OR-WA -> OR, WA
+      { ae:"OPEN", am:"Izzy", states:["OR","WA"], pm:"Mike Klug" },
+
+      // CA (two rows; SoCal & NorCal both map to CA with different AE)
+      { ae:"Ryan Hancock", am:"Ryan Yohe", states:["CA"], pm:"Mike Klug" },
+      { ae:"Gary Carter", am:"Ryan Yohe", states:["CA"], pm:"Mike Klug" },
+
+      // CO
+      { ae:"OPEN", am:"Dalton", states:["CO"], pm:"Mike Klug" },
+
+      // UT/ID
+      { ae:"Mckay Worthen", am:"Mike Stewart", states:["UT","ID"], pm:"Mike Klug" }
+    ];
+
+    // Build a per-state marker list
+    const markersData = [];
+    territoryRows.forEach(row => {
+      row.states.forEach(st => {
+        const center = STATE_CENTERS[st];
+        if (!center) return; // skip unknown codes
+        const ae = row.ae ?? "—";
+        const am = row.am ?? "—";
+        const pm = row.pm ?? "—";
+        const isOpen = (ae === "OPEN") || (am === "OPEN") || (pm === "");
+        markersData.push({
+          state: st,
+          lat: center[0],
+          lon: center[1],
+          ae, am, pm,
+          isOpen
+        });
+      });
+    });
+
+    // Initialize map (contiguous US focus)
+    const map = L.map('map', {
+      minZoom: 3,
+      maxZoom: 10
+    }).setView([39.5, -98.35], 4);
+
+    // Base tiles (no API key needed)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Marker cluster group
+    const cluster = L.markerClusterGroup({
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      disableClusteringAtZoom: 6
+    });
+
+    // Circle marker styling
+    function markerStyle(isOpen) {
+      return {
+        radius: 7,
+        color: isOpen ? '#a11' : '#1d5fd3',   // stroke
+        weight: 2,
+        fillColor: isOpen ? '#d33' : '#3388ff',
+        fillOpacity: 0.9
+      };
+    }
+
+    // Add markers
+    markersData.forEach(m => {
+      const popupHtml = `
+        <div style="font: 13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;">
+          <div style="font-weight:600;margin-bottom:4px;">${m.state}</div>
+          <div><b>AE:</b> ${m.ae}</div>
+          <div><b>AM:</b> ${m.am}</div>
+          <div><b>PM:</b> ${m.pm || "—"}</div>
+          <div style="margin-top:6px;opacity:.7">${m.isOpen ? "Open territory present" : "Assigned"}</div>
+        </div>
+      `;
+      const cm = L.circleMarker([m.lat, m.lon], markerStyle(m.isOpen))
+        .bindPopup(popupHtml);
+      cluster.addLayer(cm);
+    });
+
+    map.addLayer(cluster);
+
+    // Fit bounds to markers (with padding)
+    const grp = new L.featureGroup(cluster.getLayers());
+    try {
+      map.fitBounds(grp.getBounds().pad(0.15));
+    } catch (e) {
+      // if no markers, ignore
+    }
+  </script>
+</body>
+</html>
