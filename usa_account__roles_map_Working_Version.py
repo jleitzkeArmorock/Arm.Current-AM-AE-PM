@@ -43,13 +43,13 @@ data = {
 df = pd.DataFrame(data)
 # Treat "-" as missing everywhere (so it doesn't show in hovers)
 df.replace({"-": None}, inplace=True)
-# Add NV with AM=Dalton and add Mike B as AE to AZ, TX, CA, NV
+# Add NV with AM=Dalton and add Mike B as PM to AZ, TX, CA, NV
 supplement = pd.DataFrame([
     {"State": "NV", "Account Executive": None,     "Account Manager": "Dalton", "Project Manager": None},
-    {"State": "AZ", "Account Executive": "Mike B", "Account Manager": None,     "Project Manager": None},
-    {"State": "TX", "Account Executive": "Mike B", "Account Manager": None,     "Project Manager": None},
-    {"State": "CA", "Account Executive": "Mike B", "Account Manager": None,     "Project Manager": None},
-    {"State": "NV", "Account Executive": "Mike B", "Account Manager": None,     "Project Manager": None},
+    {"State": "AZ", "Account Executive": None, "Account Manager": None,     "Project Manager": "Mike B"},
+    {"State": "TX", "Account Executive": None, "Account Manager": None,     "Project Manager": "Mike B"},
+    {"State": "CA", "Account Executive": None, "Account Manager": None,     "Project Manager": "Mike B"},
+    {"State": "NV", "Account Executive": None, "Account Manager": None,     "Project Manager": "Mike B"},
     {"State": "IN", "Account Executive": "Oak Andrews", "Account Manager": "Bob Owen", "Project Manager": "Frank Uzzolino"},
 ])
 df = pd.concat([df, supplement], ignore_index=True)
